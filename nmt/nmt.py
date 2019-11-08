@@ -204,6 +204,10 @@ def add_arguments(parser):
   parser.add_argument("--steps_per_stats", type=int, default=100,
                       help=("How many training steps to do per stats logging."
                             "Save checkpoint every 10x steps_per_stats"))
+  parser.add_argument("--profile_dir", default="",
+                      help="Store profile results.")
+  parser.add_argument("--steps_per_profile", type=int, default=100,
+                      help="How many training steps to do per profiling.")
   parser.add_argument("--max_train", type=int, default=0,
                       help="Limit on the size of training data (0: no limit).")
   parser.add_argument("--num_buckets", type=int, default=5,
@@ -389,6 +393,8 @@ def create_hparams(flags):
       num_gpus=flags.num_gpus,
       epoch_step=0,  # record where we were within an epoch.
       steps_per_stats=flags.steps_per_stats,
+      profile_dir=flags.profile_dir,
+      steps_per_profile=flags.steps_per_profile,
       steps_per_external_eval=flags.steps_per_external_eval,
       share_vocab=flags.share_vocab,
       metrics=flags.metrics.split(","),

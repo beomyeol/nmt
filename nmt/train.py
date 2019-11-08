@@ -21,6 +21,7 @@ import random
 import time
 
 import tensorflow as tf
+from tensorflow.python.client import timeline
 
 from . import attention_model
 from . import gnmt_model
@@ -480,6 +481,14 @@ def train(hparams, scope=None, target_session=""):
   log_f = tf.gfile.GFile(log_file, mode="a")
   utils.print_out("# log_file=%s" % log_file, log_f)
 
+  # Profile files
+  profile_dir = hparams.profile_dir
+  profile_out_path = os.path.join(profile_dir, "timeline-{}.json")
+  if profile_dir:
+    tf.gfile.MakeDirs(profile_dir)
+    utils.print_out("# profile_dir=%s" % profile_dir)
+  steps_per_profile = hparams.steps_per_profile
+
   # TensorFlow model
   config_proto = utils.get_config_proto(
       log_device_placement=log_device_placement,
@@ -510,15 +519,26 @@ def train(hparams, scope=None, target_session=""):
   last_stats_step = global_step
   last_eval_step = global_step
   last_external_eval_step = global_step
+  last_profile_step = global_step
 
   # This is the training loop.
   stats, info, start_train_time = before_train(
       loaded_train_model, train_model, train_sess, global_step, hparams, log_f)
   while global_step < num_train_steps:
     ### Run a step ###
+    # Enable tracing for profiling if profile_dir is provided
+    if profile_dir and global_step - last_profile_step >= steps_per_profile:
+      last_profile_step = global_step
+      run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+      run_metadata = tf.RunMetadata()
+    else:
+      run_options = None
+      run_metadata = None
+
     start_time = time.time()
     try:
-      step_result = loaded_train_model.train(train_sess)
+      step_result = loaded_train_model.train(train_sess, options=run_options,
+                                             run_metadata=run_metadata)
       hparams.epoch_step += 1
     except tf.errors.OutOfRangeError:
       # Finished going through the training dataset.  Go to next epoch.
@@ -557,6 +577,16 @@ def train(hparams, scope=None, target_session=""):
 
       # Reset statistics
       stats = init_stats()
+
+    # Save timeline
+    if run_metadata is not None:
+      trace = timeline.Timeline(run_metadata.step_stats)
+      save_path = profile_out_path.format(last_profile_step)
+      utils.print_out("# Saving step stats for %d at %s" %
+                      (last_profile_step, save_path))
+      with open(save_path, 'w') as profile_f:
+        profile_f.write(trace.generate_chrome_trace_format(
+            show_dataflow=True, show_memory=True))
 
     if global_step - last_eval_step >= steps_per_eval:
       last_eval_step = global_step
