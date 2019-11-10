@@ -582,7 +582,7 @@ def train(hparams, scope=None, target_session=""):
     if run_metadata is not None:
       trace = timeline.Timeline(run_metadata.step_stats)
       save_path = profile_out_path.format(last_profile_step)
-      utils.print_out("# Saving step stats for %d at %s" %
+      utils.print_out("# Saving timeline for %d at %s" %
                       (last_profile_step, save_path))
       with open(save_path, 'w') as profile_f:
         profile_f.write(trace.generate_chrome_trace_format(
